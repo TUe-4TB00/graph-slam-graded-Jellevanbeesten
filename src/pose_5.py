@@ -1,3 +1,5 @@
+from unittest import result
+
 import numpy as np
 from helperfunctions import add_pose_from_global, add_landmark_measurement_from_global
 import gtsam
@@ -64,17 +66,30 @@ def minimize_marginals(graph, initial_estimate, pose_options):
     return best_pose, best_landmark, sum_of_marginals
 
 def minimize_errors(graph, initial_estimate, pose_options):
-    #TODO: try different pose and landmark options here, and keep the one with the lowest resulting error.
-    best_pose = "a"      # chosen pose option
-    best_landmark = 1    # chosen landmark (1 or 2)
-    pose_5 = pose_options[best_pose]
-    graph, initial_estimate = add_pose(graph, initial_estimate, pose_5)
-    result = optimize(graph, initial_estimate)
-    graph = add_landmark_measurement(graph, result, pose_5, best_landmark)
-    result = optimize(graph, initial_estimate)
+    best_pose = None
+    best_landmark = None
+    best_sum = np.inf
 
-    # TODO: create a list of errors (each index corresponds to a pose) and add the error of each pose to the list
-    list_of_errors = []
-    # TODO: compute the sum of the errors and return it along with the best pose and landmark
-    sum_of_errors = 0
-    return best_pose, best_landmark, sum_of_errors 
+    ground_truth = {
+        1: np.array([0.0, 0.0]),
+        2: np.array([2.0, 0.0]),
+        3: np.array([4.0, 0.0]),
+    }
+
+    for pose_key, pose_5 in pose_options.items():
+        for landmark in [1, 2]:
+            g = graph.clone()
+            est = gtsam.Values(initial_estimate)
+            g, est = add_pose(g, est, pose_5)
+            result = optimize(g, est)
+            g = add_landmark_measurement(g, result, pose_5, landmark)
+            result = optimize(g, est)
+
+            sum_of_errors = sum(
+                np.linalg.norm(result.atPose2(X(i)).translation() - ground_truth[i])
+                for i in range(1, 4)
+            )
+
+            if sum_of_errors < best_sum:
+                best_sum, best_pose, best_landmark = sum_of_errors, pose_key, landmark
+    return best_pose, best_landmark, best_sum
